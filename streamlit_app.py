@@ -4,18 +4,18 @@
 """)
 
 with st.expander("Parámetros del Modelo (Tabla S1)"):
-st.markdown("""
-| Parámetro | Símbolo | Valor | Unidad | Fuente |
-|-----------|---------|-------|--------|--------|
-| Eficiencia óptica | η_opt | 0.758 | - | Suplemento 4 (S27) |
-| Coef. pérdidas | U_loss | 4.6 | W/m²K | Tabla S1 |
-| Coef. ganancia | U_gain | 12.8 | W/m²K | Tabla S1 |
-| Efectividad sobrecalentador | f_superheater | 0.8 | - | Experimental |
-| Capacitancia del emisor | C_e | 75 | J/K | Figura S4 |
-| Masa de la cubeta | m_basin | 0.2 | kg | Figura S4 |
-| Calor latente | h_fg | 2257 | kJ/kg | Propiedad del agua |
-| Punto de ebullición | T_boil | 100 | °C | A 1 atm |
-""")
+    st.markdown("""
+    | Parámetro | Símbolo | Valor | Unidad | Fuente |
+    |-----------|---------|-------|--------|--------|
+    | Eficiencia óptica | eta_opt | 0.758 | - | Suplemento 4 (S27) |
+    | Coef. pérdidas | U_loss | 4.6 | W/m²K | Tabla S1 |
+    | Coef. ganancia | U_gain | 12.8 | W/m²K | Tabla S1 |
+    | Efectividad sobrecalentador | f_superheater | 0.8 | - | Experimental |
+    | Capacitancia del emisor | C_e | 75 | J/K | Figura S4 |
+    | Masa de la cubeta | m_basin | 0.2 | kg | Figura S4 |
+    | Calor latente | h_fg | 2257 | kJ/kg | Propiedad del agua |
+    | Punto de ebullición | T_boil | 100 | °C | A 1 atm |
+    """)
 
 # ============================================================================
 # CÓDIGO OCTAVE DESCARGABLE
