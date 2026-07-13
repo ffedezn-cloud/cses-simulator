@@ -70,7 +70,7 @@ T_boil = 100.0  # Punto de ebullicion (C)
 sigma = 5.67e-8  # Constante de Stefan-Boltzmann (W/m2K4)
 
 # ============================================================================
-# CALCULO DE PARAMETROS DERIVADOS (CORREGIDO)
+# CÁLCULO DE PARÁMETROS DERIVADOS (CORREGIDO)
 # ============================================================================
 
 # Temperatura de referencia para linealizar la radiacion (punto medio entre T_w y T_e)
@@ -78,17 +78,27 @@ T_ref = (T_boil + 150) / 2  # ~125°C (estimado para el CSES)
 T_ref_K = T_ref + 273.15
 
 # Coeficiente de radiacion linealizado (Ecuacion S12 del paper)
-# U_rad_lin = 4 * epsilon_eff * sigma * T_ref_K^3
 U_rad_lin = 4 * epsilon_eff * sigma * T_ref_K**3
 
 # Coeficiente de ganancia total (radiacion linealizada + conveccion)
 U_gain_eff = U_rad_lin + U_conv
 
-# Flujo de equilibrio (Ecuacion S13)
-q_solar_0 = U_loss * (T_boil - T_inf) / eta_opt
+# ----- CORRECCIÓN: Ajuste de U_loss para incluir pérdidas por radiación -----
+# La superficie selectiva tiene una emitancia de 0.081 a 150°C (Tabla S2)
+# Pero la emitancia efectiva considerando los tornillos es 0.118 (Ecuación S56)
+epsilon_emitter = 0.118  # Emitancia efectiva del emisor (incluye tornillos)
 
-# Eficiencia maxima (Ecuacion S18)
-eta_max = eta_opt * U_gain_eff / (U_loss + U_gain_eff)
+# Pérdidas por radiación desde el emisor al ambiente (ley de Stefan-Boltzmann linealizada)
+U_rad_loss = 4 * epsilon_emitter * sigma * T_ref_K**3
+
+# Coeficiente de pérdidas total (convección + radiación + conducción)
+U_loss_total = U_loss + U_rad_loss
+
+# Flujo de equilibrio (Ecuacion S13) - usando U_loss_total
+q_solar_0 = U_loss_total * (T_boil - T_inf) / eta_opt
+
+# Eficiencia maxima (Ecuacion S18) - usando U_loss_total y U_gain_eff
+eta_max = eta_opt * U_gain_eff / (U_loss_total + U_gain_eff)
 
 st.subheader("Parametros Calculados")
 col1, col2, col3 = st.columns(3)
@@ -100,36 +110,34 @@ with col2:
 with col3:
     st.metric("U_gain efectivo", f"{U_gain_eff:.2f} W/m2K")
 
-with st.expander("Detalle del calculo de U_gain"):
+with st.expander("Detalle del calculo de U_loss y U_gain"):
     st.markdown(f"""
-    **Linealizacion de la radiacion (Ecuacion S12):**
-    - Temperatura de referencia: {T_ref:.0f}C ({T_ref_K:.0f} K)
-    - epsilon_eff = {epsilon_eff:.3f}
-    - sigma = 5.67e-8 W/m2K4
-    - U_rad_lin = 4·epsilon_eff·sigma·T_ref^3 = {U_rad_lin:.2f} W/m2K
+    **Coeficiente de pérdidas total (U_loss_total):**
+    - U_loss (convección/conductión) = {U_loss:.2f} W/m2K
+    - U_rad_loss (radiación al ambiente) = {U_rad_loss:.2f} W/m2K
+    - U_loss_total = {U_loss_total:.2f} W/m2K
     
-    **Conveccion en el gap (Ecuacion S67):**
-    - U_conv = {U_conv:.2f} W/m2K
-    
-    **Coeficiente de ganancia total:**
-    - U_gain = U_rad_lin + U_conv = {U_gain_eff:.2f} W/m2K
+    **Coeficiente de ganancia (U_gain_eff):**
+    - U_rad_lin (radiación al agua) = {U_rad_lin:.2f} W/m2K
+    - U_conv (convección al agua) = {U_conv:.2f} W/m2K
+    - U_gain_eff = {U_gain_eff:.2f} W/m2K
     
     **Comparacion con el paper:**
-    - Paper (Tabla S1): U_gain = 12.8 W/m2K
-    - Diferencia: {abs(U_gain_eff - 12.8)/12.8*100:.1f}%
+    - Paper (Tabla S1): U_loss = 4.6 W/m2K, U_gain = 12.8 W/m2K
+    - U_loss_total: {abs(U_loss_total - 4.6)/4.6*100:.1f}% de diferencia
+    - U_gain_eff: {abs(U_gain_eff - 12.8)/12.8*100:.1f}% de diferencia
     """)
 
 # ============================================================================
-# MODELO EN ESPACIO DE ESTADOS (CON RADIACION + CONVECCION)
+# MODELO EN ESPACIO DE ESTADOS (CORREGIDO)
 # ============================================================================
 
-def modelo_cses(X, t, q_solar, T_inf, A_e, eta_opt, U_loss, 
+def modelo_cses(X, t, q_solar, T_inf, A_e, eta_opt, U_loss_total, 
                 epsilon_eff, U_conv, f_superheater, 
                 cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin):
     """
-    Modelo en espacio de estados del CSES
+    Modelo en espacio de estados del CSES (CORREGIDO)
     Variables de estado: X = [T_e, T_w, m_w]
-    Transferencia de calor emisor-agua: Radiacion + Conveccion en gap de gas
     """
     T_e, T_w, m_w = X
     
@@ -137,8 +145,11 @@ def modelo_cses(X, t, q_solar, T_inf, A_e, eta_opt, U_loss,
     C_w = m_w * cp_w + m_basin * cp_basin
     
     # ----- Flujos de calor (Ecuacion S11) -----
+    # Calor absorbido del sol
     q_abs = eta_opt * q_solar * A_e
-    q_loss = U_loss * A_e * (T_e - T_inf)
+    
+    # Pérdidas al ambiente (incluyen radiación + convección + conducción)
+    q_loss = U_loss_total * A_e * (T_e - T_inf)
     
     # ----- Transferencia de calor al agua (gap de gas) -----
     # 1. Radiacion (Ecuacion S38, con epsilon_eff)
