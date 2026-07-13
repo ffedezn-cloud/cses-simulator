@@ -21,6 +21,7 @@ with st.expander("Parametros del Modelo (Tabla S1)"):
 # CÓDIGO OCTAVE DESCARGABLE
 # ============================================================================
 with st.expander("📄 Código Octave (descargable)"):
+
 codigo_octave = """% =========================================================================
 % MODELO CSES (Contactless Solar Evaporation Structure)
 % Basado en el paper del MIT (Suplemento 5)
@@ -34,14 +35,14 @@ disp('  SIMULADOR CSES - MODELO TRANSITORIO');
 disp('========================================');
 
 % =========================================================================
-% PARÁMETROS DEL SISTEMA
+% PARAMETROS DEL SISTEMA
 % =========================================================================
 
-% ----- Parámetros geométricos -----
-A_e = 0.0232;           % Área del emisor (m²)
+% ----- Parametros geometricos -----
+A_e = 0.0232;           % Area del emisor (m2)
 L_gas_gap = 0.015;      % Espacio de gas (m)
 
-% ----- Parámetros térmicos (Tabla S1) -----
+% ----- Parametros termicos (Tabla S1) -----
 eta_opt = 0.758;
 U_loss = 4.6;
 U_gain = 12.8;
@@ -67,11 +68,11 @@ m_w_initial = 0.100;
 q_solar = 1000;
 T_inf = 25;
 
-% ----- Simulación -----
+% ----- Simulacion -----
 t_final = 3600;
 
 % =========================================================================
-% FUNCIÓN DEL MODELO (CORREGIDA)
+% FUNCION DEL MODELO (CORREGIDA)
 % =========================================================================
 
 function dX = modelo_cses(t, X, q_solar, T_inf, A_e, eta_opt, U_loss, ...
@@ -92,13 +93,13 @@ m_dot = 0;
 q_superheat = 0;
 
 if T_w >= T_boil && m_w > 0
-    % CASO 1: Evaporación
+    % CASO 1: Evaporacion
     m_dot = q_gain / h_fg;
     q_superheat = f_superheater * m_dot * cp_s * (T_e - T_w);
     dT_w = 0;
     dm_w = -m_dot;
 else
-    % CASO 2: Calentamiento (sin evaporación)
+    % CASO 2: Calentamiento (sin evaporacion)
     m_dot = 0;
     q_superheat = 0;
     if C_w > 0
@@ -116,7 +117,7 @@ dX = [dT_e; dT_w; dm_w];
 endfunction
 
 % =========================================================================
-% SIMULACIÓN
+% SIMULACION
 % =========================================================================
 
 t = linspace(0, t_final, 2000)';
@@ -149,7 +150,7 @@ endif
 endfor
 
 % =========================================================================
-% GRÁFICOS
+% GRAFICOS
 % =========================================================================
 
 figure('Position', [100, 100, 1200, 800]);
@@ -161,10 +162,10 @@ plot(t/60, T_w, 'r-', 'LineWidth', 2);
 plot(t/60, T_s, 'g-', 'LineWidth', 2);
 yline(T_boil, 'k--', 'LineWidth', 1.5);
 xlabel('Tiempo (min)');
-ylabel('Temperatura (°C)');
-title('Evolución de las Temperaturas');
+ylabel('Temperatura (C)');
+title('Evolucion de las Temperaturas');
 grid on;
-legend('T_e (Emisor)', 'T_w (Agua)', 'T_s (Vapor)', '100°C');
+legend('T_e (Emisor)', 'T_w (Agua)', 'T_s (Vapor)', '100 C');
 
 subplot(2,2,2);
 plot(t/60, m_w * 1000, 'r-', 'LineWidth', 2);
@@ -174,13 +175,13 @@ title('Masa de agua en la cubeta');
 grid on;
 
 fprintf('\\n========== RESULTADOS ==========\\n');
-fprintf('T_e final: %.1f °C\\n', T_e(end));
-fprintf('T_w final: %.1f °C\\n', T_w(end));
-fprintf('T_s final: %.1f °C\\n', T_s(end));
+fprintf('T_e final: %.1f C\\n', T_e(end));
+fprintf('T_w final: %.1f C\\n', T_w(end));
+fprintf('T_s final: %.1f C\\n', T_s(end));
 fprintf('Masa final: %.1f g\\n', m_w(end) * 1000);
 fprintf('Masa evaporada: %.1f g\\n', (m_w_initial - m_w(end)) * 1000);
 
-disp('Simulación finalizada.');
+disp('Simulacion finalizada.');
 """
 
 st.code(codigo_octave, language="octave")
