@@ -3,18 +3,18 @@
 `T_s = T_w + f_superheater·(T_e - T_w)`
 """)
 
-with st.expander("Parámetros del Modelo (Tabla S1)"):
+with st.expander("Parametros del Modelo (Tabla S1)"):
     st.markdown("""
-    | Parámetro | Símbolo | Valor | Unidad | Fuente |
+    | Parametro | Simbolo | Valor | Unidad | Fuente |
     |-----------|---------|-------|--------|--------|
-    | Eficiencia óptica | eta_opt | 0.758 | - | Suplemento 4 (S27) |
-    | Coef. pérdidas | U_loss | 4.6 | W/m²K | Tabla S1 |
-    | Coef. ganancia | U_gain | 12.8 | W/m²K | Tabla S1 |
+    | Eficiencia optica | eta_opt | 0.758 | - | Suplemento 4 (S27) |
+    | Coef. perdidas | U_loss | 4.6 | W/m2K | Tabla S1 |
+    | Coef. ganancia | U_gain | 12.8 | W/m2K | Tabla S1 |
     | Efectividad sobrecalentador | f_superheater | 0.8 | - | Experimental |
     | Capacitancia del emisor | C_e | 75 | J/K | Figura S4 |
     | Masa de la cubeta | m_basin | 0.2 | kg | Figura S4 |
     | Calor latente | h_fg | 2257 | kJ/kg | Propiedad del agua |
-    | Punto de ebullición | T_boil | 100 | °C | A 1 atm |
+    | Punto de ebullicion | T_boil | 100 | C | A 1 atm |
     """)
 
 # ============================================================================
