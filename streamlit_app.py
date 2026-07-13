@@ -32,11 +32,16 @@ with st.sidebar:
     st.subheader("Coeficientes Termicos")
     eta_opt = st.slider("Eficiencia optica eta_opt", 0.5, 0.9, 0.758, 0.01)
     U_loss = st.slider("Perdidas al ambiente U_loss (W/m2K)", 1.0, 10.0, 4.6, 0.1)
-    U_gain = st.slider("Ganancia al agua U_gain (W/m2K)", 5.0, 50.0, 25.0, 0.1)
     f_superheater = st.slider("Efectividad del sobrecalentador f_superheater", 0.0, 1.0, 0.8, 0.05)
     
+    st.subheader("Transferencia de Calor en el Gap de Gas")
+    epsilon_eff = st.slider("Efectividad radiativa epsilon_eff", 0.5, 0.95, 0.79, 0.01, 
+                           help="Ecuacion S40 del paper. 0.79 es el valor calculado para el CSES.")
+    U_conv = st.slider("Conveccion en el gap U_conv (W/m2K)", 0.0, 5.0, 1.5, 0.1,
+                       help="Ecuacion S67 del paper. 1.5 W/m2K para el gap de 1.5 cm.")
+    
     st.subheader("Capacitancias")
-    C_e = st.number_input("Capacitancia del emisor C_e (J/K)", value=30.0, min_value=10.0, max_value=100.0, step=5.0)
+    C_e = st.number_input("Capacitancia del emisor C_e (J/K)", value=75.0, min_value=10.0, max_value=200.0, step=5.0)
     m_basin = st.number_input("Masa de la cubeta m_basin (kg)", value=0.2, min_value=0.05, max_value=1.0, step=0.05)
     cp_basin = st.number_input("Calor especifico de la cubeta cp_basin (J/kgK)", value=1100.0, min_value=500.0, max_value=2000.0, step=50.0)
     
@@ -62,16 +67,19 @@ with st.sidebar:
 # PARÁMETROS FIJOS
 # ============================================================================
 T_boil = 100.0  # Punto de ebullicion (C)
+sigma = 5.67e-8  # Constante de Stefan-Boltzmann (W/m2K4)
 
 # ============================================================================
-# MODELO EN ESPACIO DE ESTADOS (CORREGIDO)
+# MODELO EN ESPACIO DE ESTADOS (CORREGIDO CON RADIACION + CONVECCION)
 # ============================================================================
 
-def modelo_cses(X, t, q_solar, T_inf, A_e, eta_opt, U_loss, U_gain,
-                f_superheater, cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin):
+def modelo_cses(X, t, q_solar, T_inf, A_e, eta_opt, U_loss, 
+                epsilon_eff, U_conv, f_superheater, 
+                cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin):
     """
     Modelo en espacio de estados del CSES (CORREGIDO)
     Variables de estado: X = [T_e, T_w, m_w]
+    Transferencia de calor emisor-agua: Radiacion + Conveccion en gap de gas
     """
     T_e, T_w, m_w = X
     
@@ -81,18 +89,31 @@ def modelo_cses(X, t, q_solar, T_inf, A_e, eta_opt, U_loss, U_gain,
     # ----- Flujos de calor (Ecuacion S11) -----
     q_abs = eta_opt * q_solar * A_e
     q_loss = U_loss * A_e * (T_e - T_inf)
-    q_gain = U_gain * A_e * (T_e - T_w)
+    
+    # ----- Transferencia de calor al agua (gap de gas) -----
+    # 1. Radiacion (Ecuacion S38, con epsilon_eff = 0.79)
+    T_e_K = T_e + 273.15
+    T_w_K = T_w + 273.15
+    q_rad = epsilon_eff * sigma * A_e * (T_e_K**4 - T_w_K**4)
+    
+    # 2. Conveccion (Ecuacion S67, con U_conv = 1.5 W/m²K)
+    q_conv = U_conv * A_e * (T_e - T_w)
+    
+    # Calor total transferido al agua
+    q_gain = q_rad + q_conv
     
     # ----- Logica de evaporacion (Ecuacion S33) -----
     m_dot = 0.0
     q_superheat = 0.0
     
     if T_w >= T_boil and m_w > 0:
+        # Evaporacion: toda la energia que llega al agua se usa para evaporar
         m_dot = q_gain / h_fg
         q_superheat = f_superheater * m_dot * cp_s * (T_e - T_w)
-        dT_w = 0
+        dT_w = 0  # La temperatura se mantiene a 100°C
         dm_w = -m_dot
     else:
+        # Calentamiento (sin evaporacion)
         m_dot = 0
         q_superheat = 0
         if C_w > 0:
@@ -110,7 +131,11 @@ def modelo_cses(X, t, q_solar, T_inf, A_e, eta_opt, U_loss, U_gain,
 # CALCULO DE PARAMETROS DERIVADOS
 # ============================================================================
 q_solar_0 = U_loss * (T_boil - T_inf) / eta_opt
-eta_max = eta_opt * U_gain / (U_loss + U_gain)
+
+# Nota: La eficiencia maxima ahora depende de la transferencia total (radiacion + conveccion)
+# Para simplificar, usamos la formula del paper con U_gain total efectivo
+U_gain_eff = epsilon_eff * sigma * ((T_boil + 273.15)**3) * 4 + U_conv  # Aprox linealizado
+eta_max = eta_opt * U_gain_eff / (U_loss + U_gain_eff)
 
 st.subheader("Parametros Calculados")
 col1, col2, col3 = st.columns(3)
@@ -131,8 +156,8 @@ t = np.linspace(0, t_final, n_points)
 X0 = [T_e_initial, T_w_initial, m_w_initial]
 
 with st.spinner("Simulando el CSES..."):
-    sol = odeint(modelo_cses, X0, t, args=(q_solar, T_inf, A_e, eta_opt, 
-                                           U_loss, U_gain, f_superheater, 
+    sol = odeint(modelo_cses, X0, t, args=(q_solar, T_inf, A_e, eta_opt, U_loss, 
+                                           epsilon_eff, U_conv, f_superheater, 
                                            cp_w, cp_s, h_fg, T_boil, C_e, 
                                            m_basin, cp_basin))
 
@@ -145,6 +170,8 @@ m_w = sol[:, 2]
 # ============================================================================
 m_dot = np.zeros_like(t)
 q_gain = np.zeros_like(t)
+q_rad = np.zeros_like(t)
+q_conv = np.zeros_like(t)
 q_loss = np.zeros_like(t)
 q_abs = np.zeros_like(t)
 q_superheat = np.zeros_like(t)
@@ -155,7 +182,12 @@ for i in range(len(t)):
     
     q_abs[i] = eta_opt * q_solar * A_e
     q_loss[i] = U_loss * A_e * (T_e_i - T_inf)
-    q_gain[i] = U_gain * A_e * (T_e_i - T_w_i)
+    
+    T_e_K = T_e_i + 273.15
+    T_w_K = T_w_i + 273.15
+    q_rad[i] = epsilon_eff * sigma * A_e * (T_e_K**4 - T_w_K**4)
+    q_conv[i] = U_conv * A_e * (T_e_i - T_w_i)
+    q_gain[i] = q_rad[i] + q_conv[i]
     
     if T_w_i >= T_boil and m_w_i > 0:
         m_dot[i] = q_gain[i] / h_fg
@@ -283,7 +315,9 @@ ax3.legend()
 ax4 = axes[1, 1]
 ax4.plot(t/60, q_abs, 'b-', linewidth=2, label='q_abs (absorbido)')
 ax4.plot(t/60, q_loss, 'r-', linewidth=2, label='q_loss (perdidas)')
-ax4.plot(t/60, q_gain, 'g-', linewidth=2, label='q_gain (al agua)')
+ax4.plot(t/60, q_rad, 'cyan', linewidth=2, label='q_rad (radiacion)')
+ax4.plot(t/60, q_conv, 'magenta', linewidth=2, label='q_conv (conveccion)')
+ax4.plot(t/60, q_gain, 'g-', linewidth=2, label='q_gain (total al agua)')
 ax4.plot(t/60, q_superheat, 'orange', linewidth=2, label='q_superheat (al vapor)')
 ax4.set_xlabel("Tiempo (min)")
 ax4.set_ylabel("Flujo de calor (W)")
@@ -306,8 +340,8 @@ with st.expander("Efecto de la masa inicial de agua"):
     for m_g in masas_prueba:
         m_kg = m_g / 1000
         X0_aux = [T_e_initial, T_w_initial, m_kg]
-        sol_aux = odeint(modelo_cses, X0_aux, t, args=(q_solar, T_inf, A_e, 
-                                                       eta_opt, U_loss, U_gain, 
+        sol_aux = odeint(modelo_cses, X0_aux, t, args=(q_solar, T_inf, A_e, eta_opt, 
+                                                       U_loss, epsilon_eff, U_conv,
                                                        f_superheater, cp_w, cp_s, 
                                                        h_fg, T_boil, C_e, 
                                                        m_basin, cp_basin))
@@ -323,7 +357,11 @@ with st.expander("Efecto de la masa inicial de agua"):
         m_dot_aux = np.zeros_like(t)
         for i in range(len(t)):
             if T_w_aux[i] >= T_boil and m_w_aux[i] > 0:
-                q_gain_aux = U_gain * A_e * (sol_aux[i, 0] - T_w_aux[i])
+                T_e_K = sol_aux[i, 0] + 273.15
+                T_w_K = T_w_aux[i] + 273.15
+                q_rad_aux = epsilon_eff * sigma * A_e * (T_e_K**4 - T_w_K**4)
+                q_conv_aux = U_conv * A_e * (sol_aux[i, 0] - T_w_aux[i])
+                q_gain_aux = q_rad_aux + q_conv_aux
                 m_dot_aux[i] = q_gain_aux / h_fg
                 T_s_aux[i] = T_w_aux[i] + f_superheater * (sol_aux[i, 0] - T_w_aux[i])
             else:
@@ -348,8 +386,9 @@ with st.expander("Efecto de la radiacion solar"):
     
     for qs in radiacion_prueba:
         sol_aux = odeint(modelo_cses, X0, t, args=(qs, T_inf, A_e, eta_opt, 
-                                                   U_loss, U_gain, f_superheater, 
-                                                   cp_w, cp_s, h_fg, T_boil, C_e, 
+                                                   U_loss, epsilon_eff, U_conv,
+                                                   f_superheater, cp_w, cp_s, 
+                                                   h_fg, T_boil, C_e, 
                                                    m_basin, cp_basin))
         
         T_w_aux = sol_aux[:, 1]
@@ -363,7 +402,11 @@ with st.expander("Efecto de la radiacion solar"):
         m_dot_aux = np.zeros_like(t)
         for i in range(len(t)):
             if T_w_aux[i] >= T_boil and m_w_aux[i] > 0:
-                q_gain_aux = U_gain * A_e * (sol_aux[i, 0] - T_w_aux[i])
+                T_e_K = sol_aux[i, 0] + 273.15
+                T_w_K = T_w_aux[i] + 273.15
+                q_rad_aux = epsilon_eff * sigma * A_e * (T_e_K**4 - T_w_K**4)
+                q_conv_aux = U_conv * A_e * (sol_aux[i, 0] - T_w_aux[i])
+                q_gain_aux = q_rad_aux + q_conv_aux
                 m_dot_aux[i] = q_gain_aux / h_fg
                 T_s_aux[i] = T_w_aux[i] + f_superheater * (sol_aux[i, 0] - T_w_aux[i])
             else:
@@ -400,17 +443,27 @@ with st.expander("Modelo Conceptual"):
     
     ### Ecuaciones Diferenciales
     **Balance del Emisor (VC1):**
-    `C_e · dT_e/dt = eta_opt·q_solar·A_e - U_loss·A_e·(T_e - T_inf) - U_gain·A_e·(T_e - T_w) - f_superheater·m_dot·c_p,s·(T_e - T_w)`
+    `C_e · dT_e/dt = eta_opt·q_solar·A_e - U_loss·A_e·(T_e - T_inf) - q_gain·A_e - q_superheat`
     
     **Balance del Agua (VC2):**
-    `C_w · dT_w/dt = U_gain·A_e·(T_e - T_w) - m_dot·h_fg`
+    `C_w · dT_w/dt = q_gain·A_e - m_dot·h_fg`
     
     **Balance de Masa:**
     `dm_w/dt = -m_dot`
     
-    **Condicion de Evaporacion (Ecuacion S33):**
+    ### Transferencia de Calor en el Gap de Gas
+    **Radiacion (Ecuacion S38):**
+    `q_rad = epsilon_eff · sigma · (T_e^4 - T_w^4)`
+    
+    **Conveccion (Ecuacion S67):**
+    `q_conv = U_conv · (T_e - T_w)`
+    
+    **Calor total al agua:**
+    `q_gain = q_rad + q_conv`
+    
+    ### Condicion de Evaporacion (Ecuacion S33)
     Si T_w >= 100C y m_w > 0:
-    m_dot = U_gain·A_e·(T_e - T_w) / h_fg
+    m_dot = q_gain / h_fg
     dT_w/dt = 0
     Si no:
     m_dot = 0
@@ -425,7 +478,8 @@ with st.expander("Parametros del Modelo (Tabla S1)"):
     |-----------|---------|-------|--------|--------|
     | Eficiencia optica | eta_opt | 0.758 | - | Suplemento 4 (S27) |
     | Coef. perdidas | U_loss | 4.6 | W/m2K | Tabla S1 |
-    | Coef. ganancia | U_gain | 12.8 | W/m2K | Tabla S1 |
+    | Efectividad radiativa | epsilon_eff | 0.79 | - | Ecuacion S40 |
+    | Conveccion en gap | U_conv | 1.5 | W/m2K | Ecuacion S67 |
     | Efectividad sobrecalentador | f_superheater | 0.8 | - | Experimental |
     | Capacitancia del emisor | C_e | 75 | J/K | Figura S4 |
     | Masa de la cubeta | m_basin | 0.2 | kg | Figura S4 |
@@ -440,7 +494,7 @@ with st.expander("Codigo Octave (descargable)"):
     codigo_octave = """% =========================================================================
 % MODELO CSES (Contactless Solar Evaporation Structure)
 % Basado en el paper del MIT (Suplemento 5)
-% Version para Octave (CORREGIDO)
+% Version para Octave (CORREGIDO CON RADIACION + CONVECCION)
 % =========================================================================
 
 clear all; close all; clc;
@@ -460,8 +514,10 @@ L_gas_gap = 0.015;      % Espacio de gas (m)
 % ----- Parametros termicos (Tabla S1) -----
 eta_opt = 0.758;
 U_loss = 4.6;
-U_gain = 12.8;
+epsilon_eff = 0.79;     % Ecuacion S40
+U_conv = 1.5;           % Ecuacion S67
 f_superheater = 0.8;
+sigma = 5.67e-8;        % Stefan-Boltzmann
 
 % ----- Propiedades del agua y vapor -----
 cp_w = 4187;
@@ -487,12 +543,12 @@ T_inf = 25;
 t_final = 3600;
 
 % =========================================================================
-% FUNCION DEL MODELO (CORREGIDA)
+% FUNCION DEL MODELO (CORREGIDA CON RADIACION + CONVECCION)
 % =========================================================================
 
 function dX = modelo_cses(t, X, q_solar, T_inf, A_e, eta_opt, U_loss, ...
-                      U_gain, f_superheater, cp_w, cp_s, h_fg, ...
-                      T_boil, C_e, m_basin, cp_basin)
+                      epsilon_eff, U_conv, f_superheater, ...
+                      cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin, sigma)
 T_e = X(1);
 T_w = X(2);
 m_w = X(3);
@@ -501,20 +557,26 @@ C_w = m_w * cp_w + m_basin * cp_basin;
 
 q_abs = eta_opt * q_solar * A_e;
 q_loss = U_loss * A_e * (T_e - T_inf);
-q_gain = U_gain * A_e * (T_e - T_w);
+
+% Radiacion (Ecuacion S38)
+T_e_K = T_e + 273.15;
+T_w_K = T_w + 273.15;
+q_rad = epsilon_eff * sigma * A_e * (T_e_K^4 - T_w_K^4);
+
+% Conveccion (Ecuacion S67)
+q_conv = U_conv * A_e * (T_e - T_w);
+q_gain = q_rad + q_conv;
 
 % Inicializar variables
 m_dot = 0;
 q_superheat = 0;
 
 if T_w >= T_boil && m_w > 0
-    % CASO 1: Evaporacion
     m_dot = q_gain / h_fg;
     q_superheat = f_superheater * m_dot * cp_s * (T_e - T_w);
     dT_w = 0;
     dm_w = -m_dot;
 else
-    % CASO 2: Calentamiento (sin evaporacion)
     m_dot = 0;
     q_superheat = 0;
     if C_w > 0
@@ -525,7 +587,6 @@ else
     dm_w = 0;
 endif
 
-% Balance del emisor
 dT_e = (q_abs - q_loss - q_gain - q_superheat) / C_e;
 
 dX = [dT_e; dT_w; dm_w];
@@ -539,8 +600,8 @@ t = linspace(0, t_final, 2000)';
 X0 = [T_e_initial; T_w_initial; m_w_initial];
 
 [t, X] = ode45(@(t, X) modelo_cses(t, X, q_solar, T_inf, A_e, eta_opt, ...
-           U_loss, U_gain, f_superheater, cp_w, cp_s, h_fg, ...
-           T_boil, C_e, m_basin, cp_basin), t, X0);
+           U_loss, epsilon_eff, U_conv, f_superheater, ...
+           cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin, sigma), t, X0);
 
 T_e = X(:, 1);
 T_w = X(:, 2);
@@ -552,16 +613,27 @@ m_w = X(:, 3);
 
 m_dot = zeros(size(t));
 T_s = zeros(size(t));
+q_rad = zeros(size(t));
+q_conv = zeros(size(t));
+q_gain = zeros(size(t));
 
 for i = 1:length(t)
-if T_w(i) >= T_boil && m_w(i) > 0
-    q_gain_i = U_gain * A_e * (T_e(i) - T_w(i));
-    m_dot(i) = q_gain_i / h_fg;
-    T_s(i) = T_w(i) + f_superheater * (T_e(i) - T_w(i));
-else
-    m_dot(i) = 0;
-    T_s(i) = T_w(i);
-endif
+    T_e_i = T_e(i);
+    T_w_i = T_w(i);
+    T_e_K = T_e_i + 273.15;
+    T_w_K = T_w_i + 273.15;
+    
+    q_rad(i) = epsilon_eff * sigma * A_e * (T_e_K^4 - T_w_K^4);
+    q_conv(i) = U_conv * A_e * (T_e_i - T_w_i);
+    q_gain(i) = q_rad(i) + q_conv(i);
+    
+    if T_w(i) >= T_boil && m_w(i) > 0
+        m_dot(i) = q_gain(i) / h_fg;
+        T_s(i) = T_w(i) + f_superheater * (T_e_i - T_w_i);
+    else
+        m_dot(i) = 0;
+        T_s(i) = T_w(i);
+    endif
 endfor
 
 % =========================================================================
@@ -588,6 +660,24 @@ xlabel('Tiempo (min)');
 ylabel('Masa de agua (g)');
 title('Masa de agua en la cubeta');
 grid on;
+
+subplot(2,2,3);
+plot(t/60, m_dot * 3600 * 1000, 'm-', 'LineWidth', 2);
+xlabel('Tiempo (min)');
+ylabel('Flujo masico de vapor (g/h)');
+title('Tasa de evaporacion');
+grid on;
+
+subplot(2,2,4);
+plot(t/60, q_rad, 'c-', 'LineWidth', 2);
+hold on;
+plot(t/60, q_conv, 'm-', 'LineWidth', 2);
+plot(t/60, q_gain, 'g-', 'LineWidth', 2);
+xlabel('Tiempo (min)');
+ylabel('Flujo de calor (W)');
+title('Transferencia de calor al agua');
+grid on;
+legend('q_rad', 'q_conv', 'q_gain');
 
 fprintf('\\n========== RESULTADOS ==========\\n');
 fprintf('T_e final: %.1f C\\n', T_e(end));
