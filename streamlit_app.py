@@ -32,11 +32,11 @@ with st.sidebar:
     st.subheader("Coeficientes Termicos")
     eta_opt = st.slider("Eficiencia optica eta_opt", 0.5, 0.9, 0.758, 0.01)
     U_loss = st.slider("Perdidas al ambiente U_loss (W/m2K)", 1.0, 10.0, 4.6, 0.1)
-    U_gain = st.slider("Ganancia al agua U_gain (W/m2K)", 5.0, 20.0, 12.8, 0.1)
+    U_gain = st.slider("Ganancia al agua U_gain (W/m2K)", 5.0, 30.0, 12.8, 0.1)
     f_superheater = st.slider("Efectividad del sobrecalentador f_superheater", 0.0, 1.0, 0.8, 0.05)
     
     st.subheader("Capacitancias")
-    C_e = st.number_input("Capacitancia del emisor C_e (J/K)", value=75.0, min_value=10.0, max_value=500.0, step=5.0)
+    C_e = st.number_input("Capacitancia del emisor C_e (J/K)", value=75.0, min_value=10.0, max_value=200.0, step=5.0)
     m_basin = st.number_input("Masa de la cubeta m_basin (kg)", value=0.2, min_value=0.05, max_value=1.0, step=0.05)
     cp_basin = st.number_input("Calor especifico de la cubeta cp_basin (J/kgK)", value=1100.0, min_value=500.0, max_value=2000.0, step=50.0)
     
