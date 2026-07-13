@@ -21,7 +21,7 @@ st.markdown("---")
 # SIDEBAR - PARÁMETROS
 # ============================================================================
 with st.sidebar:
-    st.header(" Parametros del CSES (Tabla S1)")
+    st.header("Parametros del CSES (Tabla S1)")
     
     st.subheader("Geometria")
     A_e = st.number_input(
@@ -36,7 +36,7 @@ with st.sidebar:
     f_superheater = st.slider("Efectividad del sobrecalentador f_superheater", 0.0, 1.0, 0.8, 0.05)
     
     st.subheader("Capacitancias")
-    C_e = st.number_input("Capacitancia del emisor C_e (J/K)", value=50.0, min_value=10.0, max_value=200.0, step=5.0)
+    C_e = st.number_input("Capacitancia del emisor C_e (J/K)", value=30.0, min_value=10.0, max_value=100.0, step=5.0)
     m_basin = st.number_input("Masa de la cubeta m_basin (kg)", value=0.2, min_value=0.05, max_value=1.0, step=0.05)
     cp_basin = st.number_input("Calor especifico de la cubeta cp_basin (J/kgK)", value=1100.0, min_value=500.0, max_value=2000.0, step=50.0)
     
@@ -112,7 +112,7 @@ def modelo_cses(X, t, q_solar, T_inf, A_e, eta_opt, U_loss, U_gain,
 q_solar_0 = U_loss * (T_boil - T_inf) / eta_opt
 eta_max = eta_opt * U_gain / (U_loss + U_gain)
 
-st.subheader(" Parametros Calculados")
+st.subheader("Parametros Calculados")
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Flujo de equilibrio (q_solar,0)", f"{q_solar_0:.0f} W/m2", 
@@ -125,7 +125,7 @@ with col3:
 # ============================================================================
 # SIMULACION
 # ============================================================================
-st.subheader(" Simulacion Dinamica")
+st.subheader("Simulacion Dinamica")
 
 t = np.linspace(0, t_final, n_points)
 X0 = [T_e_initial, T_w_initial, m_w_initial]
@@ -184,7 +184,7 @@ m_evaporada = (m_w_initial - m_w[-1]) * 1000
 # ============================================================================
 # METRICAS DE DESEMPEÑO
 # ============================================================================
-st.subheader(" Resultados de la Simulacion")
+st.subheader("Resultados de la Simulacion")
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
@@ -212,7 +212,7 @@ with col8:
 # ============================================================================
 # VERIFICACION CON EL PAPER
 # ============================================================================
-st.subheader(" Verificacion con el Paper")
+st.subheader("Verificacion con el Paper")
 
 paper_values = {
     'T_e': 150,
@@ -240,9 +240,9 @@ st.dataframe(df_verification, use_container_width=True)
 
 all_ok = all([error_T_e < 10, error_T_w < 5, error_T_s < 10, error_eta < 20, error_m_dot < 20])
 if all_ok:
-    st.success(" Todas las variables coinciden con el paper. El modelo es valido.")
+    st.success("Todas las variables coinciden con el paper. El modelo es valido.")
 else:
-    st.warning(" Algunas variables se desvian del paper. Revisar parametros.")
+    st.warning("Algunas variables se desvian del paper. Revisar parametros.")
 
 # ============================================================================
 # GRAFICOS
@@ -297,7 +297,7 @@ st.pyplot(fig)
 # ============================================================================
 # ANALISIS DE SENSIBILIDAD
 # ============================================================================
-st.subheader(" Analisis de Sensibilidad")
+st.subheader("Analisis de Sensibilidad")
 
 with st.expander("Efecto de la masa inicial de agua"):
     masas_prueba = [50, 100, 200]
@@ -388,7 +388,7 @@ with st.expander("Efecto de la radiacion solar"):
 # DOCUMENTACION
 # ============================================================================
 st.markdown("---")
-st.subheader(" Documentacion del Modelo")
+st.subheader("Documentacion del Modelo")
 
 with st.expander("Modelo Conceptual"):
     st.markdown("""
@@ -436,7 +436,7 @@ with st.expander("Parametros del Modelo (Tabla S1)"):
 # ============================================================================
 # CODIGO OCTAVE DESCARGABLE
 # ============================================================================
-with st.expander(" Codigo Octave (descargable)"):
+with st.expander("Codigo Octave (descargable)"):
     codigo_octave = """% =========================================================================
 % MODELO CSES (Contactless Solar Evaporation Structure)
 % Basado en el paper del MIT (Suplemento 5)
@@ -602,7 +602,7 @@ disp('Simulacion finalizada.');
     st.code(codigo_octave, language="octave")
     
     st.download_button(
-        label=" Descargar modelo_cses_octave.m",
+        label="Descargar modelo_cses_octave.m",
         data=codigo_octave,
         file_name="modelo_cses_octave.m",
         mime="text/plain"
