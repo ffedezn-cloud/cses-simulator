@@ -23,10 +23,10 @@ with st.expander("Parámetros del Modelo (Tabla S1)"):
 # CÓDIGO OCTAVE DESCARGABLE
 # ============================================================================
 with st.expander("📄 Código Octave (descargable)"):
-codigo_octave = """% =========================================================================
+    codigo_octave = r"""% =========================================================================
 % MODELO CSES (Contactless Solar Evaporation Structure)
 % Basado en el paper del MIT (Suplemento 5)
-% Versión para Octave (CORREGIDO CON RADIACION + CONVECCION)
+% Version para Octave (CORREGIDO CON RADIACION + CONVECCION)
 % =========================================================================
 
 clear all; close all; clc;
@@ -79,8 +79,8 @@ t_final = 3600;
 % =========================================================================
 
 function dX = modelo_cses(t, X, q_solar, T_inf, A_e, eta_opt, U_loss, ...
-                  epsilon_eff, U_conv, f_superheater, ...
-                  cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin, sigma)
+                      epsilon_eff, U_conv, f_superheater, ...
+                      cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin, sigma)
 T_e = X(1);
 T_w = X(2);
 m_w = X(3);
@@ -104,19 +104,19 @@ m_dot = 0;
 q_superheat = 0;
 
 if T_w >= T_boil && m_w > 0
-m_dot = q_gain / h_fg;
-q_superheat = f_superheater * m_dot * cp_s * (T_e - T_w);
-dT_w = 0;
-dm_w = -m_dot;
-else
-m_dot = 0;
-q_superheat = 0;
-if C_w > 0
-    dT_w = q_gain / C_w;
-else
+    m_dot = q_gain / h_fg;
+    q_superheat = f_superheater * m_dot * cp_s * (T_e - T_w);
     dT_w = 0;
-endif
-dm_w = 0;
+    dm_w = -m_dot;
+else
+    m_dot = 0;
+    q_superheat = 0;
+    if C_w > 0
+        dT_w = q_gain / C_w;
+    else
+        dT_w = 0;
+    endif
+    dm_w = 0;
 endif
 
 dT_e = (q_abs - q_loss - q_gain - q_superheat) / C_e;
@@ -128,12 +128,12 @@ endfunction
 % SIMULACION
 % =========================================================================
 
-t = linspace(0, t_final, 2000)';
+t = linspace(0, t_final, 2000);
 X0 = [T_e_initial; T_w_initial; m_w_initial];
 
 [t, X] = ode45(@(t, X) modelo_cses(t, X, q_solar, T_inf, A_e, eta_opt, ...
-       U_loss, epsilon_eff, U_conv, f_superheater, ...
-       cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin, sigma), t, X0);
+           U_loss, epsilon_eff, U_conv, f_superheater, ...
+           cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin, sigma), t, X0);
 
 T_e = X(:, 1);
 T_w = X(:, 2);
@@ -150,22 +150,22 @@ q_conv = zeros(size(t));
 q_gain = zeros(size(t));
 
 for i = 1:length(t)
-T_e_i = T_e(i);
-T_w_i = T_w(i);
-T_e_K = T_e_i + 273.15;
-T_w_K = T_w_i + 273.15;
-
-q_rad(i) = epsilon_eff * sigma * A_e * (T_e_K^4 - T_w_K^4);
-q_conv(i) = U_conv * A_e * (T_e_i - T_w_i);
-q_gain(i) = q_rad(i) + q_conv(i);
-
-if T_w(i) >= T_boil && m_w(i) > 0
-    m_dot(i) = q_gain(i) / h_fg;
-    T_s(i) = T_w(i) + f_superheater * (T_e_i - T_w_i);
-else
-    m_dot(i) = 0;
-    T_s(i) = T_w(i);
-endif
+    T_e_i = T_e(i);
+    T_w_i = T_w(i);
+    T_e_K = T_e_i + 273.15;
+    T_w_K = T_w_i + 273.15;
+    
+    q_rad(i) = epsilon_eff * sigma * A_e * (T_e_K^4 - T_w_K^4);
+    q_conv(i) = U_conv * A_e * (T_e_i - T_w_i);
+    q_gain(i) = q_rad(i) + q_conv(i);
+    
+    if T_w(i) >= T_boil && m_w(i) > 0
+        m_dot(i) = q_gain(i) / h_fg;
+        T_s(i) = T_w(i) + f_superheater * (T_e_i - T_w_i);
+    else
+        m_dot(i) = 0;
+        T_s(i) = T_w(i);
+    endif
 endfor
 
 % =========================================================================
@@ -211,24 +211,24 @@ title('Transferencia de calor al agua');
 grid on;
 legend('q_rad', 'q_conv', 'q_gain');
 
-fprintf('\\n========== RESULTADOS ==========\\n');
-fprintf('T_e final: %.1f C\\n', T_e(end));
-fprintf('T_w final: %.1f C\\n', T_w(end));
-fprintf('T_s final: %.1f C\\n', T_s(end));
-fprintf('Masa final: %.1f g\\n', m_w(end) * 1000);
-fprintf('Masa evaporada: %.1f g\\n', (m_w_initial - m_w(end)) * 1000);
+fprintf('\n========== RESULTADOS ==========\n');
+fprintf('T_e final: %.1f C\n', T_e(end));
+fprintf('T_w final: %.1f C\n', T_w(end));
+fprintf('T_s final: %.1f C\n', T_s(end));
+fprintf('Masa final: %.1f g\n', m_w(end) * 1000);
+fprintf('Masa evaporada: %.1f g\n', (m_w_initial - m_w(end)) * 1000);
 
 disp('Simulacion finalizada.');
 """
-
-st.code(codigo_octave, language="octave")
-
-st.download_button(
-    label="📥 Descargar modelo_cses_octave.m",
-    data=codigo_octave,
-    file_name="modelo_cses_octave.m",
-    mime="text/plain"
-)
+    
+    st.code(codigo_octave, language="octave")
+    
+    st.download_button(
+        label="📥 Descargar modelo_cses_octave.m",
+        data=codigo_octave,
+        file_name="modelo_cses_octave.m",
+        mime="text/plain"
+    )
 
 # ============================================================================
 # FOOTER
