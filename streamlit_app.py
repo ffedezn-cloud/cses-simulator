@@ -88,32 +88,39 @@ T_boil = 100.0  # Punto de ebullición (°C)
 def modelo_cses(X, t, q_solar, T_inf, A_e, eta_opt, U_loss, U_gain,
                 f_superheater, cp_w, cp_s, h_fg, T_boil, C_e, m_basin, cp_basin):
     """
-    Modelo en espacio de estados del CSES
+    Modelo en espacio de estados del CSES (CORREGIDO)
     Variables de estado: X = [T_e, T_w, m_w]
     """
     T_e, T_w, m_w = X
     
-    # Capacitancia del agua (varía con la masa)
+    # ----- Capacitancia del agua (varía con la masa) -----
     C_w = m_w * cp_w + m_basin * cp_basin
     
-    # ----- Flujos de calor -----
-    q_abs = eta_opt * q_solar * A_e
-    q_loss = U_loss * A_e * (T_e - T_inf)
-    q_gain = U_gain * A_e * (T_e - T_w)
+    # ----- Flujos de calor (Ecuación S11) -----
+    q_abs = eta_opt * q_solar * A_e          # Calor absorbido del sol [W]
+    q_loss = U_loss * A_e * (T_e - T_inf)    # Pérdidas al ambiente [W]
+    q_gain = U_gain * A_e * (T_e - T_w)      # Calor transferido al agua [W]
     
     # ----- Lógica de evaporación (Ecuación S33) -----
     if T_w >= T_boil and m_w > 0:
-        m_dot = q_gain / h_fg
-        q_superheat = f_superheater * m_dot * cp_s * (T_e - T_w)
-        dT_w = 0
-        dm_w = -m_dot
+        # CASO 1: Evaporación
+        m_dot = q_gain / h_fg                 # Flujo másico de vapor [kg/s]
+        q_superheat = f_superheater * m_dot * cp_s * (T_e - T_w)  # Calor al vapor [W]
+        dT_w = 0                              # La temperatura se mantiene a 100°C
+        dm_w = -m_dot                         # La masa disminuye
     else:
+        # CASO 2: Calentamiento (sin evaporación)
         m_dot = 0
         q_superheat = 0
-        dT_w = q_gain / C_w if C_w > 0 else 0
+        # El agua se calienta si recibe calor
+        if C_w > 0:
+            dT_w = q_gain / C_w
+        else:
+            dT_w = 0
         dm_w = 0
     
     # ----- Balance de energía del emisor (VC1) -----
+    # C_e * dT_e/dt = q_abs - q_loss - q_gain - q_superheat
     dT_e = (q_abs - q_loss - q_gain - q_superheat) / C_e
     
     return [dT_e, dT_w, dm_w]
